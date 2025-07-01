@@ -1,7 +1,8 @@
 -- lua/nvim-translator/client.lua
 local M = {}
+local util = require("nvim-translator.util")
 
-function M.translate(text, source_lang, target_lang, callback)
+local function translate_paragraph(text, source_lang, target_lang, callback)
   if vim.fn.executable("curl") == 0 then
     local err_msg = "nvim-translator: `curl` is not installed. Please install it to use this plugin."
     vim.notify(err_msg, vim.log.levels.ERROR)
@@ -11,14 +12,7 @@ function M.translate(text, source_lang, target_lang, callback)
     return
   end
 
-  -- Add configuration fallback logic
   local config = require("nvim-translator.config")
-  if not source_lang or source_lang == "" then
-    source_lang = config.opts.source_lang
-  end
-  if not target_lang or target_lang == "" then
-    target_lang = config.opts.target_lang
-  end
   local url = config.opts.api_url
   local body = {
     text = text,
@@ -43,11 +37,11 @@ function M.translate(text, source_lang, target_lang, callback)
   vim.fn.jobstart(command, {
     on_stdout = function(_, data, _)
       if data then
-        if type(data) == "table" then -- Check if data is a table (multiple lines)
+        if type(data) == "table" then
           for _, line in ipairs(data) do
             table.insert(stdout_chunks, line)
           end
-        else -- data is a string (single line)
+        else
           table.insert(stdout_chunks, data)
         end
       end
@@ -63,35 +57,24 @@ function M.translate(text, source_lang, target_lang, callback)
         end
       end
     end,
-    on_exit = function(job_id, code, event)
+    on_exit = function(_, code, _)
       if code ~= 0 then
-        vim.notify("Error calling translation API. Exit code: " .. code, vim.log.levels.ERROR)
         if callback then
-          callback(nil, "API request failed")
+          callback(nil, "API request failed with exit code: " .. code)
         end
         return
       end
 
-      -- Explicitly filter out nil values from stdout_chunks (though on_stdout should prevent this now)
-      local filtered_stdout_chunks = {}
-      for _, chunk in ipairs(stdout_chunks) do
-        if chunk ~= nil then
-          table.insert(filtered_stdout_chunks, chunk)
-        end
-      end
-
-      local response_body = table.concat(filtered_stdout_chunks, "")
-
+      local response_body = table.concat(stdout_chunks, "")
       local ok, response = pcall(vim.fn.json_decode, response_body)
 
       if not ok or (response and response.code ~= 200) then
-        local error_message = "Failed to parse translation response or API returned an error."
-        if response and response.message then
-          error_message = error_message .. " API message: " .. response.message
-        end
-        vim.notify(error_message, vim.log.levels.ERROR)
         if callback then
-          callback(nil, error_message)
+          local err_msg = "Failed to parse response or API error."
+          if response and response.message then
+            err_msg = err_msg .. " Message: " .. response.message
+          end
+          callback(nil, err_msg)
         end
         return
       end
@@ -101,6 +84,47 @@ function M.translate(text, source_lang, target_lang, callback)
       end
     end,
   })
+end
+
+function M.translate(text, source_lang, target_lang, callback)
+  local config = require("nvim-translator.config")
+  if not source_lang or source_lang == "" then
+    source_lang = config.opts.source_lang
+  end
+  if not target_lang or target_lang == "" then
+    target_lang = config.opts.target_lang
+  end
+
+  local paragraphs = util.split_paragraphs(text)
+  local translated_paragraphs = {}
+  local completed_requests = 0
+  local has_errors = false
+
+  if #paragraphs == 0 then
+    if callback then
+      callback(text) -- Return original text if no paragraphs found
+    end
+    return
+  end
+
+  for i, p in ipairs(paragraphs) do
+    translate_paragraph(p, source_lang, target_lang, function(translated, err)
+      completed_requests = completed_requests + 1
+      if err then
+        translated_paragraphs[i] = p -- Use original paragraph on failure
+        has_errors = true
+      else
+        translated_paragraphs[i] = translated
+      end
+
+      if completed_requests == #paragraphs then
+        local final_text = table.concat(translated_paragraphs, "\n\n")
+        if callback then
+          callback(final_text, has_errors)
+        end
+      end
+    end)
+  end
 end
 
 return M

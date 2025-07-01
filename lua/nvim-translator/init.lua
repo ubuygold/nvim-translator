@@ -60,10 +60,9 @@ function M.translate()
     return
   end
 
-  client.translate(selection, config.opts.source_lang, config.opts.target_lang, function(translated_text, err)
-    if err then
-      vim.notify("Translation failed: " .. err, vim.log.levels.ERROR)
-      return
+  client.translate(selection, config.opts.source_lang, config.opts.target_lang, function(translated_text, has_errors)
+    if has_errors then
+      vim.notify("Some paragraphs could not be translated and were left in their original form.", vim.log.levels.WARN)
     end
     if translated_text then
       vim.schedule(function()
