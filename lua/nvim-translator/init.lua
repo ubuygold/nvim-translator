@@ -5,27 +5,17 @@ local config = require("nvim-translator.config")
 local client = require("nvim-translator.client")
 
 local function get_visual_selection()
-  local _, start_row, start_col, _ = unpack(vim.fn.getpos("'<"))
-  local _, end_row, end_col, _ = unpack(vim.fn.getpos("'>"))
-  local lines = vim.api.nvim_buf_get_lines(0, start_row - 1, end_row, false)
-  if #lines == 0 then
-    return ""
-  end
-  if #lines == 1 then
-    return string.sub(lines[1], start_col, end_col)
-  else
-    local first_line = string.sub(lines[1], start_col)
-    local last_line = string.sub(lines[#lines], 1, end_col)
-    local middle_lines = {}
-    if #lines > 2 then
-      for i = 2, #lines - 1 do
-        table.insert(middle_lines, lines[i])
-      end
-    end
-    table.insert(middle_lines, 1, first_line)
-    table.insert(middle_lines, last_line)
-    return table.concat(middle_lines, "\n")
-  end
+  local start_pos = vim.fn.getpos("'<")
+  local end_pos = vim.fn.getpos("'>")
+  -- getpos returns [bufnum, lnum, col, off]
+  -- nvim_buf_get_text expects {row, col} where row and col are 0-indexed
+  local start_row = start_pos[2] - 1
+  local start_col = start_pos[3] - 1
+  local end_row = end_pos[2] - 1
+  local end_col = end_pos[3]
+
+  local lines = vim.api.nvim_buf_get_text(0, start_row, start_col, end_row, end_col, {})
+  return table.concat(lines, "\n")
 end
 
 local function show_translation(text)
@@ -39,17 +29,9 @@ local function show_translation(text)
   local buf = vim.api.nvim_create_buf(false, true)
 
   -- Split text by newline characters into an array of lines
-  local lines = {}
-  if text then
-    for line in text:gmatch("[^\r\n]+") do
-      table.insert(lines, line)
-    end
-    -- If text is empty or contains only line breaks, add at least one empty line
-    if #lines == 0 then
-      lines = {""}
-    end
-  else
-    lines = {""}
+  local lines = vim.split(text or "", "\n")
+  if vim.tbl_isempty(lines) then
+    lines = { "" }
   end
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
@@ -93,16 +75,11 @@ end
 
 function M.setup(opts)
   config.setup(opts)
-  
+
   -- Get keymap setting from configuration
   local keymap = config.opts.keymap
   if keymap and keymap ~= false then
-    vim.api.nvim_set_keymap(
-      "v",
-      keymap,
-      ":Translate<CR>",
-      { noremap = true, silent = true }
-    )
+    vim.api.nvim_set_keymap("v", keymap, ":Translate<CR>", { noremap = true, silent = true })
   end
 end
 

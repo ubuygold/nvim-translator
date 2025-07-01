@@ -9,8 +9,9 @@ describe("nvim-translator.config", function()
 
   describe("default_config", function()
     it("should have correct default values", function()
+      assert.are.equal("https://deeplx.vercel.app/translate", config.default_config.api_url)
       assert.are.equal("auto", config.default_config.source_lang)
-      assert.are.equal("zh", config.default_config.target_lang)
+      assert.are.equal("EN", config.default_config.target_lang)
       assert.are.equal("<leader>lt", config.default_config.keymap)
     end)
   end)
@@ -20,8 +21,9 @@ describe("nvim-translator.config", function()
       config.setup()
       
       assert.are.equal("auto", config.opts.source_lang)
-      assert.are.equal("zh", config.opts.target_lang)
+      assert.are.equal("EN", config.opts.target_lang)
       assert.are.equal("<leader>lt", config.opts.keymap)
+      assert.are.equal("https://deeplx.vercel.app/translate", config.opts.api_url)
     end)
 
     it("should merge custom options with defaults", function()
@@ -55,7 +57,7 @@ describe("nvim-translator.config", function()
       config.setup(nil)
       
       assert.are.equal("auto", config.opts.source_lang)
-      assert.are.equal("zh", config.opts.target_lang)
+      assert.are.equal("EN", config.opts.target_lang)
       assert.are.equal("<leader>lt", config.opts.keymap)
     end)
 
@@ -63,7 +65,7 @@ describe("nvim-translator.config", function()
       config.setup({})
       
       assert.are.equal("auto", config.opts.source_lang)
-      assert.are.equal("zh", config.opts.target_lang)
+      assert.are.equal("EN", config.opts.target_lang)
       assert.are.equal("<leader>lt", config.opts.keymap)
     end)
 
@@ -78,7 +80,7 @@ describe("nvim-translator.config", function()
       config.setup(custom_opts)
       
       assert.are.equal("en", config.opts.source_lang)
-      assert.are.equal("zh", config.opts.target_lang)
+      assert.are.equal("EN", config.opts.target_lang) -- Should keep default value
       assert.are.equal("test", config.opts.custom_field.nested_value)
     end)
   end)

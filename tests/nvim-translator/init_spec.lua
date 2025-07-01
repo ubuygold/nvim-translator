@@ -2,17 +2,15 @@
 local translator = require("nvim-translator")
 
 describe("nvim-translator", function()
-  local original_getpos, original_buf_get_lines, original_create_buf, original_open_win
+  local original_getpos, original_buf_get_text, original_create_buf, original_open_win
   local original_notify, original_set_keymap, original_schedule
-  local mock_selection = ""
-  local mock_lines = {}
+  local mock_text_lines = {}
   local notifications = {}
   local keymaps = {}
 
   before_each(function()
     -- Reset state
-    mock_selection = ""
-    mock_lines = {}
+    mock_text_lines = {}
     notifications = {}
     keymaps = {}
 
@@ -26,10 +24,10 @@ describe("nvim-translator", function()
       end
     end
 
-    -- Mock vim.api.nvim_buf_get_lines
-    original_buf_get_lines = vim.api.nvim_buf_get_lines
-    vim.api.nvim_buf_get_lines = function(buffer, start, end_line, strict_indexing)
-      return mock_lines
+    -- Mock vim.api.nvim_buf_get_text
+    original_buf_get_text = vim.api.nvim_buf_get_text
+    vim.api.nvim_buf_get_text = function(buffer, start_row, start_col, end_row, end_col, opts)
+      return mock_text_lines
     end
 
     -- Mock vim.api.nvim_create_buf
@@ -75,7 +73,7 @@ describe("nvim-translator", function()
   after_each(function()
     -- Restore original functions
     vim.fn.getpos = original_getpos
-    vim.api.nvim_buf_get_lines = original_buf_get_lines
+    vim.api.nvim_buf_get_text = original_buf_get_text
     vim.api.nvim_create_buf = original_create_buf
     vim.api.nvim_open_win = original_open_win
     vim.notify = original_notify
@@ -120,7 +118,7 @@ describe("nvim-translator", function()
     end)
 
     it("should notify when no text is selected", function()
-      mock_lines = {} -- Empty selection
+      mock_text_lines = {} -- Empty selection
 
       translator.translate()
 
@@ -130,7 +128,7 @@ describe("nvim-translator", function()
     end)
 
     it("should handle single line selection", function()
-      mock_lines = { "Hello world" }
+      mock_text_lines = { "Hello worl" }
 
       -- Mock successful client translation
       local client = require("nvim-translator.client")
@@ -147,7 +145,7 @@ describe("nvim-translator", function()
     end)
 
     it("should handle multi-line selection", function()
-      mock_lines = { "Hello", "world", "test" }
+      mock_text_lines = { "Hello", "world", "test" }
 
       -- Adjust getpos to mock multi-line selection
       vim.fn.getpos = function(mark)
@@ -170,14 +168,13 @@ describe("nvim-translator", function()
       translator.translate()
 
       -- Verify multi-line text is correctly concatenated
-      assert.is_true(string.find(captured_text, "Hello") ~= nil)
-      assert.is_true(string.find(captured_text, "test") ~= nil)
+      assert.are.equal("Hello\nworld\ntest", captured_text)
 
       client.translate = original_translate
     end)
 
     it("should handle translation error", function()
-      mock_lines = { "Hello" }
+      mock_text_lines = { "Hello" }
 
       local client = require("nvim-translator.client")
       local original_translate = client.translate
@@ -196,7 +193,7 @@ describe("nvim-translator", function()
     end)
 
     it("should show translation result in popup", function()
-      mock_lines = { "Hello" }
+      mock_text_lines = { "Hello" }
 
       local client = require("nvim-translator.client")
       local original_translate = client.translate
@@ -221,7 +218,7 @@ describe("nvim-translator", function()
     end)
 
     it("should handle multi-line translation result", function()
-      mock_lines = {"Hello"}
+      mock_text_lines = {"Hello"}
 
       local client = require("nvim-translator.client")
       local original_translate = client.translate

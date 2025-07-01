@@ -22,7 +22,7 @@ describe("nvim-translator.client", function()
     vim.fn.jobstart = function(command, opts)
       local job_id = job_id_counter
       job_id_counter = job_id_counter + 1
-      job_callbacks[job_id] = opts
+      job_callbacks[job_id] = { command = command, opts = opts }
       return job_id
     end
   end)
@@ -32,7 +32,58 @@ describe("nvim-translator.client", function()
     vim.fn.jobstart = original_jobstart
   end)
 
+  describe("pre-flight checks", function()
+    it("should notify and callback with error if curl is not executable", function()
+      -- Mock vim.fn.executable to simulate curl not being found
+      local original_executable = vim.fn.executable
+      vim.fn.executable = function(cmd)
+        if cmd == "curl" then return 0 end
+        return 1
+      end
+
+      -- Mock vim.notify
+      local original_notify = vim.notify
+      local notifications = {}
+      vim.notify = function(msg, level)
+        table.insert(notifications, {msg = msg, level = level})
+      end
+
+      local callback_called = false
+      local callback_error = nil
+      client.translate("test", "", "", function(result, err)
+        callback_called = true
+        callback_error = err
+      end)
+
+      assert.is_true(callback_called)
+      assert.is_not_nil(callback_error)
+      assert.are.equal(1, #notifications)
+      assert.is_true(string.find(notifications[1].msg, "curl` is not installed") ~= nil)
+
+      -- Restore mocks
+      vim.fn.executable = original_executable
+      vim.notify = original_notify
+    end)
+  end)
+
   describe("translate", function()
+    it("should use the api_url from config", function()
+      config.setup({ api_url = "https://my.custom.api/translate" })
+
+      client.translate("Hello", "en", "fr", function() end)
+
+      assert.is_not_nil(job_callbacks[1])
+      local command_table = job_callbacks[1].command
+      local url_found = false
+      for _, part in ipairs(command_table) do
+        if part == "https://my.custom.api/translate" then
+          url_found = true
+          break
+        end
+      end
+      assert.is_true(url_found, "Custom API URL was not used in the command")
+    end)
+
     it("should use default config when parameters are empty", function()
       local callback_called = false
       local callback_result = nil
@@ -48,7 +99,7 @@ describe("nvim-translator.client", function()
       assert.is_true(next(job_callbacks) ~= nil)
       
       local job_id = next(job_callbacks)
-      local opts = job_callbacks[job_id]
+      local opts = job_callbacks[job_id].opts
       
       -- Simulate successful response
       local mock_response = {
@@ -76,7 +127,7 @@ describe("nvim-translator.client", function()
       
       -- Here we mainly verify the function was called, actual parameter validation requires more complex mocking
       local job_id = next(job_callbacks)
-      local opts = job_callbacks[job_id]
+      local opts = job_callbacks[job_id].opts
       
       -- Simulate successful response
       local mock_response = {
@@ -102,7 +153,7 @@ describe("nvim-translator.client", function()
       end)
 
       local job_id = next(job_callbacks)
-      local opts = job_callbacks[job_id]
+      local opts = job_callbacks[job_id].opts
       
       -- Simulate API error response
       local mock_response = {
@@ -131,7 +182,7 @@ describe("nvim-translator.client", function()
       end)
 
       local job_id = next(job_callbacks)
-      local opts = job_callbacks[job_id]
+      local opts = job_callbacks[job_id].opts
       
       -- Simulate curl command failure
       opts.on_exit(job_id, 1, "exit")
@@ -153,7 +204,7 @@ describe("nvim-translator.client", function()
       end)
 
       local job_id = next(job_callbacks)
-      local opts = job_callbacks[job_id]
+      local opts = job_callbacks[job_id].opts
       
       -- Simulate invalid JSON response
       opts.on_stdout(job_id, {"invalid json"}, "stdout")
@@ -174,7 +225,7 @@ describe("nvim-translator.client", function()
       end)
 
       local job_id = next(job_callbacks)
-      local opts = job_callbacks[job_id]
+      local opts = job_callbacks[job_id].opts
       
       -- Simulate chunked response
       local mock_response = {

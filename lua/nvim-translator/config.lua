@@ -2,6 +2,7 @@
 local M = {}
 
 M.default_config = {
+  api_url = "https://deeplx.vercel.app/translate",
   source_lang = "auto",
   target_lang = "EN",
   keymap = "<leader>lt", -- Add default keymap

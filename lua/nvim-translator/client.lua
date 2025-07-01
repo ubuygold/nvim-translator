@@ -2,6 +2,15 @@
 local M = {}
 
 function M.translate(text, source_lang, target_lang, callback)
+  if vim.fn.executable("curl") == 0 then
+    local err_msg = "nvim-translator: `curl` is not installed. Please install it to use this plugin."
+    vim.notify(err_msg, vim.log.levels.ERROR)
+    if callback then
+      callback(nil, err_msg)
+    end
+    return
+  end
+
   -- Add configuration fallback logic
   local config = require("nvim-translator.config")
   if not source_lang or source_lang == "" then
@@ -10,7 +19,7 @@ function M.translate(text, source_lang, target_lang, callback)
   if not target_lang or target_lang == "" then
     target_lang = config.opts.target_lang
   end
-  local url = "https://deeplx.vercel.app/translate"
+  local url = config.opts.api_url
   local body = {
     text = text,
     source_lang = source_lang,

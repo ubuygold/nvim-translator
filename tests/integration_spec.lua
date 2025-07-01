@@ -7,7 +7,7 @@ describe("nvim-translator integration", function()
   local client = require("nvim-translator.client")
   
   local original_jobstart, original_notify, original_schedule
-  local original_getpos, original_buf_get_lines, original_create_buf, original_open_win
+  local original_getpos, original_buf_get_text, original_create_buf, original_open_win
   local job_callbacks = {}
   local notifications = {}
   local popup_content = ""
@@ -52,8 +52,9 @@ describe("nvim-translator integration", function()
       end
     end
 
-    original_buf_get_lines = vim.api.nvim_buf_get_lines
-    vim.api.nvim_buf_get_lines = function(buffer, start, end_line, strict_indexing)
+    original_buf_get_text = vim.api.nvim_buf_get_text
+    vim.api.nvim_buf_get_text = function(buffer, start_row, start_col, end_row, end_col, opts)
+      -- Simulate returning the selected text as a list of lines
       return {"Hello"}
     end
 
@@ -85,7 +86,7 @@ describe("nvim-translator integration", function()
     vim.notify = original_notify
     vim.schedule = original_schedule
     vim.fn.getpos = original_getpos
-    vim.api.nvim_buf_get_lines = original_buf_get_lines
+    vim.api.nvim_buf_get_text = original_buf_get_text
     vim.api.nvim_create_buf = original_create_buf
     vim.api.nvim_open_win = original_open_win
   end)
@@ -189,7 +190,7 @@ describe("nvim-translator integration", function()
       translator.setup()
       
       -- Simulate empty selection
-      vim.api.nvim_buf_get_lines = function(buffer, start, end_line, strict_indexing)
+      vim.api.nvim_buf_get_text = function(buffer, start_row, start_col, end_row, end_col, opts)
         return {}
       end
       
@@ -216,7 +217,7 @@ describe("nvim-translator integration", function()
         end
       end
       
-      vim.api.nvim_buf_get_lines = function(buffer, start, end_line, strict_indexing)
+      vim.api.nvim_buf_get_text = function(buffer, start_row, start_col, end_row, end_col, opts)
         return {"Hello", "world", "test"}
       end
       
