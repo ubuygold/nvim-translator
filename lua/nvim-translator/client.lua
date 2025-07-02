@@ -107,30 +107,43 @@ function M.translate(text, source_lang, target_lang, callback)
     target_lang = config.opts.target_lang
   end
 
+  -- 1. Split text into paragraphs
   local paragraphs = util.split_paragraphs(text)
-  local translated_paragraphs = {}
-  local completed_requests = 0
-  local has_errors = false
-
   if #paragraphs == 0 then
     if callback then
-      callback(text) -- Return original text if no paragraphs found
+      callback(text, false) -- Return original text if no paragraphs
     end
     return
   end
 
-  for i, p in ipairs(paragraphs) do
-    translate_paragraph(p, source_lang, target_lang, function(translated, err)
+  -- 2. Group paragraphs into chunks
+  local chunks = util.chunk_paragraphs(paragraphs, config.opts.max_chunk_size)
+  local translated_chunks = {}
+  local completed_requests = 0
+  local has_errors = false
+
+  if #chunks == 0 then
+    if callback then
+      callback(text, false) -- Safeguard
+    end
+    return
+  end
+
+  -- 3. Translate each chunk
+  for i, chunk in ipairs(chunks) do
+    translate_paragraph(chunk, source_lang, target_lang, function(translated, err)
       completed_requests = completed_requests + 1
       if err then
-        translated_paragraphs[i] = p -- Use original paragraph on failure
+        -- On failure, use the original chunk text
+        translated_chunks[i] = chunk
         has_errors = true
       else
-        translated_paragraphs[i] = translated
+        translated_chunks[i] = translated
       end
 
-      if completed_requests == #paragraphs then
-        local final_text = table.concat(translated_paragraphs, "\n\n")
+      -- 4. When all chunks are translated, join them and call the final callback
+      if completed_requests == #chunks then
+        local final_text = table.concat(translated_chunks, "\n\n")
         if callback then
           callback(final_text, has_errors)
         end

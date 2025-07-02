@@ -53,6 +53,7 @@ require('nvim-translator').setup({
   target_lang = 'FR',   -- e.g., translate to French
   keymap = '<leader>lt', -- Keymap for direct translation
   keymap_to = '<leader>lT', -- Keymap for selecting a language before translating
+  max_chunk_size = 1000, -- Max characters per API request
   -- You can also override the list of languages for the picker
   -- languages = {
   --   { code = "EN", name = "English", text = "English (EN)" },

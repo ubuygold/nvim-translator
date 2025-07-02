@@ -34,5 +34,45 @@ function M.split_paragraphs(text)
   return paragraphs_temp
 end
 
+-- New function to group paragraphs into chunks of a maximum size.
+function M.chunk_paragraphs(paragraphs, max_size)
+  local chunks = {}
+  if not paragraphs or #paragraphs == 0 then
+    return chunks
+  end
+
+  local current_chunk = ""
+  local separator = "\n\n"
+
+  for _, p in ipairs(paragraphs) do
+    -- If the paragraph itself is larger than max_size, it becomes its own chunk.
+    if #p > max_size then
+      if #current_chunk > 0 then
+        table.insert(chunks, current_chunk)
+      end
+      table.insert(chunks, p)
+      current_chunk = ""
+    -- If adding the new paragraph (plus a separator) exceeds the max size...
+    elseif #current_chunk + #separator + #p > max_size and #current_chunk > 0 then
+      table.insert(chunks, current_chunk)
+      current_chunk = p
+    else
+      -- Otherwise, add the paragraph to the current chunk.
+      if #current_chunk == 0 then
+        current_chunk = p
+      else
+        current_chunk = current_chunk .. separator .. p
+      end
+    end
+  end
+
+  -- Add the last chunk if it's not empty.
+  if #current_chunk > 0 then
+    table.insert(chunks, current_chunk)
+  end
+
+  return chunks
+end
+
 return M
 
