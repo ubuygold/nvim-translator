@@ -18,7 +18,7 @@ local function get_visual_selection()
   return table.concat(lines, "\n")
 end
 
-local function show_translation(text)
+local function show_translation(text, filetype)
   -- Split the text into a list of lines, which is more robust for buffer content
   local lines = vim.split(text or "", "\n")
 
@@ -30,6 +30,8 @@ local function show_translation(text)
     border = "rounded",
     width = 0.8,
     height = 0.8,
+    -- Set buffer options, including the filetype for syntax highlighting
+    ft = filetype,
   })
 end -- 修复：移除多余的 '}'，并添加 'end' 来正确关闭函数
 
@@ -45,13 +47,14 @@ function M.translate(opts)
     return
   end
 
+  local ft = vim.bo.filetype
   client.translate(selection, config.opts.source_lang, config.opts.target_lang, function(translated_text, has_errors)
     if has_errors then
       vim.notify("Some paragraphs could not be translated and were left in their original form.", vim.log.levels.WARN)
     end
     if translated_text then
       vim.schedule(function()
-        show_translation(translated_text)
+        show_translation(translated_text, ft)
       end)
     end
   end)
@@ -89,13 +92,14 @@ function M.select_language_and_translate(opts)
       end
       picker:close()
       local target_lang = item.code
+      local ft = vim.bo.filetype
       client.translate(selection, config.opts.source_lang, target_lang, function(translated_text, has_errors)
         if has_errors then
           vim.notify("Some paragraphs could not be translated and were left in their original form.", vim.log.levels.WARN)
         end
         if translated_text then
           vim.schedule(function()
-            show_translation(translated_text)
+            show_translation(translated_text, ft)
           end)
         end
       end)
