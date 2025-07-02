@@ -19,6 +19,8 @@ local function translate_paragraph(text, source_lang, target_lang, callback)
     source_lang = source_lang,
     target_lang = target_lang,
   }
+  local json_body = vim.fn.json_encode(body)
+
   local command = {
     "curl",
     "-s",
@@ -27,40 +29,39 @@ local function translate_paragraph(text, source_lang, target_lang, callback)
     url,
     "-H",
     "Content-Type: application/json",
-    "-d",
-    vim.fn.json_encode(body),
+    "--data-binary",
+    "@-",
   }
 
   local stdout_chunks = {}
   local stderr_chunks = {}
+  local job_id
 
-  vim.fn.jobstart(command, {
+  job_id = vim.fn.jobstart(command, {
+    stdin = "pipe",
     on_stdout = function(_, data, _)
       if data then
-        if type(data) == "table" then
-          for _, line in ipairs(data) do
+        for _, line in ipairs(data) do
+          if line ~= "" then
             table.insert(stdout_chunks, line)
           end
-        else
-          table.insert(stdout_chunks, data)
         end
       end
     end,
     on_stderr = function(_, data, _)
       if data then
-        if type(data) == "table" then
-          for _, line in ipairs(data) do
+        for _, line in ipairs(data) do
+          if line ~= "" then
             table.insert(stderr_chunks, line)
           end
-        else
-          table.insert(stderr_chunks, data)
         end
       end
     end,
     on_exit = function(_, code, _)
       if code ~= 0 then
         if callback then
-          callback(nil, "API request failed with exit code: " .. code)
+          local stderr = table.concat(stderr_chunks, "\n")
+          callback(nil, "API request failed with exit code: " .. code .. "\n" .. stderr)
         end
         return
       end
@@ -73,6 +74,8 @@ local function translate_paragraph(text, source_lang, target_lang, callback)
           local err_msg = "Failed to parse response or API error."
           if response and response.message then
             err_msg = err_msg .. " Message: " .. response.message
+          elseif not ok then
+            err_msg = err_msg .. " Raw response: " .. response_body
           end
           callback(nil, err_msg)
         end
@@ -84,6 +87,15 @@ local function translate_paragraph(text, source_lang, target_lang, callback)
       end
     end,
   })
+
+  if job_id and job_id > 0 then
+    vim.fn.chansend(job_id, json_body)
+    vim.fn.chanclose(job_id, "stdin")
+  else
+    if callback then
+      callback(nil, "Failed to start curl job. ID: " .. tostring(job_id))
+    end
+  end
 end
 
 function M.translate(text, source_lang, target_lang, callback)

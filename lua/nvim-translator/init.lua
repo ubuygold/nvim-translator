@@ -19,33 +19,18 @@ local function get_visual_selection()
 end
 
 local function show_translation(text)
-  local width = vim.api.nvim_get_option("columns")
-  local height = vim.api.nvim_get_option("lines")
-  local win_width = math.floor(width * 0.8)
-  local win_height = math.floor(height * 0.8)
-  local row = math.floor((height - win_height) / 2)
-  local col = math.floor((width - win_width) / 2)
-
-  local buf = vim.api.nvim_create_buf(false, true)
-
-  -- Split text by newline characters into an array of lines
+  -- Split the text into a list of lines, which is more robust for buffer content
   local lines = vim.split(text or "", "\n")
-  if vim.tbl_isempty(lines) then
-    lines = { "" }
-  end
 
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-
-  local win_opts = {
-    relative = "editor",
-    width = win_width,
-    height = win_height,
-    row = row,
-    col = col,
-    style = "minimal",
+  -- Use snacks.win to replace manual window management
+  require("snacks.win")({
+    text = lines, -- Use the 'text' field as per snacks.win documentation
+    title = "Translation Result",
+    title_pos = "center",
     border = "rounded",
-  }
-  local win = vim.api.nvim_open_win(buf, true, win_opts)
+    width = 0.8,
+    height = 0.8,
+  })
 end
 
 function M.translate()

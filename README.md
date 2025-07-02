@@ -16,6 +16,7 @@ Install with your favorite plugin manager. For example, using `lazy`:
 ```lua
 return {
   'ubuygold/nvim-translator', -- Replace with your GitHub username and repository name
+  dependencies = {'folke/snacks.nvim'},
   config = function()
     require('nvim-translator').setup({
       -- Optional configuration

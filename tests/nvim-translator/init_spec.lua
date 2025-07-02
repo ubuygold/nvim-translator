@@ -3,7 +3,7 @@ local translator = require("nvim-translator")
 
 describe("nvim-translator", function()
   local original_getpos, original_buf_get_text, original_create_buf, original_open_win
-  local original_notify, original_set_keymap, original_schedule
+  local original_notify, original_set_keymap, original_schedule, original_snacks_win
   local mock_text_lines = {}
   local notifications = {}
   local keymaps = {}
@@ -43,6 +43,10 @@ describe("nvim-translator", function()
       return 1 -- Return mock window ID
     end
 
+    -- Mock snacks.win to prevent module not found error
+    original_snacks_win = package.loaded["snacks.win"]
+    package.loaded["snacks.win"] = function(opts) end
+
     -- Mock vim.notify
     original_notify = vim.notify
     vim.notify = function(msg, level)
@@ -80,6 +84,7 @@ describe("nvim-translator", function()
     vim.notify = original_notify
     vim.api.nvim_set_keymap = original_set_keymap
     vim.schedule = original_schedule
+    package.loaded["snacks.win"] = original_snacks_win
   end)
 
   describe("setup", function()
@@ -132,4 +137,3 @@ describe("nvim-translator", function()
     end)
   end)
 end)
-

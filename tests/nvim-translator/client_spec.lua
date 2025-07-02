@@ -4,7 +4,7 @@ local config = require("nvim-translator.config")
 local util = require("nvim-translator.util")
 
 describe("nvim-translator.client", function()
-  local original_jobstart
+  local original_jobstart, original_chansend, original_chanclose
   local job_callbacks = {}
   local job_id_counter
 
@@ -25,11 +25,20 @@ describe("nvim-translator.client", function()
       job_callbacks[job_id_counter] = { command = command, opts = opts }
       return job_id_counter
     end
+
+    -- Mock channel functions to avoid "Invalid channel id" error
+    original_chansend = vim.fn.chansend
+    vim.fn.chansend = function(id, data) end
+
+    original_chanclose = vim.fn.chanclose
+    vim.fn.chanclose = function(id, stream) end
   end)
 
   after_each(function()
     -- Restore original function
     vim.fn.jobstart = original_jobstart
+    vim.fn.chansend = original_chansend
+    vim.fn.chanclose = original_chanclose
   end)
 
   describe("translate", function()
