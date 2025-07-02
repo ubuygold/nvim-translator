@@ -88,6 +88,8 @@ describe("nvim-translator integration", function()
         return 24
       end
     end
+
+    vim.bo = { filetype = "lua" } -- Mock the filetype
   end)
 
   after_each(function()
@@ -102,44 +104,51 @@ describe("nvim-translator integration", function()
     package.loaded["snacks.picker"] = original_snacks_picker
     vim.fn.chansend = original_chansend
     vim.fn.chanclose = original_chanclose
+    vim.bo = nil -- Cleanup the mock
   end)
 
   describe("complete translation workflow", function()
-    it("should translate paragraphs successfully", function()
-      translator.setup()
+    it("should translate a single chunk successfully", function()
+      -- Arrange
+      translator.setup() -- Uses default max_chunk_size, so text becomes one chunk
+
+      -- Act
       translator.translate()
 
-      assert.are.equal(2, #job_callbacks) -- Two paragraphs
+      -- Assert
+      assert.are.equal(1, #job_callbacks, "Expected 1 API call for a single chunk")
 
-      -- Simulate successful API responses
-      local res1 = { code = 200, data = "Premier paragraphe." }
-      local res2 = { code = 200, data = "Second paragraphe." }
-
-      job_callbacks[1].on_stdout(1, { vim.fn.json_encode(res1) }, "stdout")
+      -- Simulate successful API response
+      local res = { code = 200, data = "Premier paragraphe.\n\nSecond paragraphe." }
+      job_callbacks[1].on_stdout(1, { vim.fn.json_encode(res) }, "stdout")
       job_callbacks[1].on_exit(1, 0, "exit")
-
-      job_callbacks[2].on_stdout(2, { vim.fn.json_encode(res2) }, "stdout")
-      job_callbacks[2].on_exit(2, 0, "exit")
 
       assert.are.same({ "Premier paragraphe.", "", "Second paragraphe." }, snacks_win_opts.text)
       assert.are.equal(0, #notifications)
     end)
 
-    it("should handle partial failure", function()
-      translator.setup()
+    it("should handle multiple chunks and partial failure", function()
+      -- Arrange
+      translator.setup({ max_chunk_size = 20 }) -- Force two chunks
+      vim.api.nvim_buf_get_text = function()
+        return { "Good chunk.", "", "Bad chunk." }
+      end
+
+      -- Act
       translator.translate()
 
-      assert.are.equal(2, #job_callbacks)
+      -- Assert
+      assert.are.equal(2, #job_callbacks, "Expected 2 API calls for two chunks")
 
-      -- First paragraph succeeds
-      local res1 = { code = 200, data = "Premier paragraphe." }
+      -- First chunk succeeds
+      local res1 = { code = 200, data = "Translated: Good chunk." }
       job_callbacks[1].on_stdout(1, { vim.fn.json_encode(res1) }, "stdout")
       job_callbacks[1].on_exit(1, 0, "exit")
 
-      -- Second paragraph fails
+      -- Second chunk fails
       job_callbacks[2].on_exit(2, 1, "exit") -- Network error
 
-      assert.are.same({ "Premier paragraphe.", "", "Second paragraph." }, snacks_win_opts.text)
+      assert.are.same({ "Translated: Good chunk.", "", "Bad chunk." }, snacks_win_opts.text)
       assert.are.equal(1, #notifications)
       assert.is_true(string.find(notifications[1].msg, "Some paragraphs could not be translated") ~= nil)
     end)
@@ -147,33 +156,53 @@ describe("nvim-translator integration", function()
 
   describe("language selection workflow", function()
     it("should open picker and translate with selected language", function()
+      -- Arrange
       translator.setup()
+
+      -- Act
       translator.select_language_and_translate()
 
-      -- Check if picker was called with correct options
+      -- Assert: Check if picker was called
       assert.is_not_nil(snacks_picker_opts.items)
       assert.are.equal("Select Target Language", snacks_picker_opts.title)
 
-      -- Simulate user selecting a language (e.g., French)
+      -- Act: Simulate user selecting a language
       local selected_item = { code = "FR", name = "French" }
-      snacks_picker_opts.confirm(nil, selected_item)
+      snacks_picker_opts.confirm({ close = function() end }, selected_item) -- Mock picker instance
 
-      -- Check if translate was called, which triggers jobstart
-      assert.are.equal(2, #job_callbacks) -- Two paragraphs
+      -- Assert: Check if translate was called for one chunk
+      assert.are.equal(1, #job_callbacks)
 
-      -- Simulate successful API responses
-      local res1 = { code = 200, data = "Premier paragraphe." }
-      local res2 = { code = 200, data = "Second paragraphe." }
-
-      job_callbacks[1].on_stdout(1, { vim.fn.json_encode(res1) }, "stdout")
+      -- Act: Simulate successful API response
+      local res = { code = 200, data = "Premier paragraphe.\n\nSecond paragraphe." }
+      job_callbacks[1].on_stdout(1, { vim.fn.json_encode(res) }, "stdout")
       job_callbacks[1].on_exit(1, 0, "exit")
 
-      job_callbacks[2].on_stdout(2, { vim.fn.json_encode(res2) }, "stdout")
-      job_callbacks[2].on_exit(2, 0, "exit")
-
-      -- Check if result is displayed
+      -- Assert: Check if result is displayed
       assert.are.same({ "Premier paragraphe.", "", "Second paragraphe." }, snacks_win_opts.text)
       assert.are.equal(0, #notifications)
+    end)
+  end)
+
+  describe("syntax highlighting", function()
+    it("should pass current filetype to the result window", function()
+      -- Arrange
+      translator.setup()
+      vim.bo.filetype = "markdown" -- Set a specific filetype for this test
+
+      -- Act
+      translator.translate()
+
+      -- Assert
+      assert.are.equal(1, #job_callbacks)
+
+      -- Simulate API response
+      local res = { code = 200, data = "# Translated Markdown" }
+      job_callbacks[1].on_stdout(1, { vim.fn.json_encode(res) }, "stdout")
+      job_callbacks[1].on_exit(1, 0, "exit")
+
+      -- Assert that the filetype was passed to snacks.win
+      assert.are.equal("markdown", snacks_win_opts.ft)
     end)
   end)
 end)

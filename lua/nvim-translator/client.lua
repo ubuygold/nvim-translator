@@ -2,7 +2,7 @@
 local M = {}
 local util = require("nvim-translator.util")
 
-local function translate_paragraph(text, source_lang, target_lang, callback)
+function M.translate_paragraph(text, source_lang, target_lang, callback)
   if vim.fn.executable("curl") == 0 then
     local err_msg = "nvim-translator: `curl` is not installed. Please install it to use this plugin."
     vim.notify(err_msg, vim.log.levels.ERROR)
@@ -131,7 +131,7 @@ function M.translate(text, source_lang, target_lang, callback)
 
   -- 3. Translate each chunk
   for i, chunk in ipairs(chunks) do
-    translate_paragraph(chunk, source_lang, target_lang, function(translated, err)
+    M.translate_paragraph(chunk, source_lang, target_lang, function(translated, err)
       completed_requests = completed_requests + 1
       if err then
         -- On failure, use the original chunk text

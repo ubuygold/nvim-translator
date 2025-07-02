@@ -3,35 +3,31 @@ local M = {}
 
 -- Splits text into paragraphs based on one or more empty lines.
 function M.split_paragraphs(text)
-  local paragraphs = {}
   -- Normalize CRLF to LF and trim leading/trailing whitespace from the whole text.
-  text = text:gsub("\r\n", "\n"):match("^%s*(.-)%s*$")
-  
-  for p in text:gmatch("([^\n]+)") do
-    -- This will capture any non-empty line as a paragraph.
-    -- To split by empty lines, we can do this differently.
-    table.insert(paragraphs, p)
-  end
+  text = text:gsub("\r\n", "\n"):match("^%s*(.-)%s*$") or ""
 
-  -- A better approach for splitting by empty lines:
-  local paragraphs_temp = {}
+  local paragraphs = {}
   local current_paragraph = {}
 
   for line in text:gmatch("([^\n]*)") do
     if line:match("^%s*$") then
+      -- When an empty line is found, finalize the current paragraph.
       if #current_paragraph > 0 then
-        table.insert(paragraphs_temp, table.concat(current_paragraph, "\n"))
+        table.insert(paragraphs, table.concat(current_paragraph, "\n"))
         current_paragraph = {}
       end
     else
+      -- Otherwise, add the line to the current paragraph.
       table.insert(current_paragraph, line)
     end
   end
+
+  -- Add the last paragraph if it exists.
   if #current_paragraph > 0 then
-    table.insert(paragraphs_temp, table.concat(current_paragraph, "\n"))
+    table.insert(paragraphs, table.concat(current_paragraph, "\n"))
   end
-  
-  return paragraphs_temp
+
+  return paragraphs
 end
 
 -- New function to group paragraphs into chunks of a maximum size.

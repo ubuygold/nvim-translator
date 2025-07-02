@@ -41,57 +41,58 @@ describe("nvim-translator.client", function()
     vim.fn.chanclose = original_chanclose
   end)
 
-  describe("translate", function()
-    it("should split text into paragraphs and translate each", function()
-      local callback_called = false
-      local final_text, has_errors
+  describe("translate with chunking", function()
+    local captured_chunks
+    local original_translate_paragraph
 
-      client.translate("Paragraph one.\n\nParagraph two.", "en", "fr", function(result, err)
-        callback_called = true
-        final_text = result
-        has_errors = err
-      end)
-
-      assert.are.equal(2, #job_callbacks) -- Two paragraphs
-
-      -- Simulate successful responses
-      local res1 = { code = 200, data = "Premier paragraphe." }
-      local res2 = { code = 200, data = "Second paragraphe." }
-
-      job_callbacks[1].opts.on_stdout(1, { vim.fn.json_encode(res1) }, "stdout")
-      job_callbacks[1].opts.on_exit(1, 0, "exit")
-
-      job_callbacks[2].opts.on_stdout(2, { vim.fn.json_encode(res2) }, "stdout")
-      job_callbacks[2].opts.on_exit(2, 0, "exit")
-
-      assert.is_true(callback_called)
-      assert.are.equal("Premier paragraphe.\n\nSecond paragraphe.", final_text)
-      assert.is_false(has_errors)
+    before_each(function()
+      captured_chunks = {}
+      -- Mock the internal function that sends requests
+      original_translate_paragraph = client.translate_paragraph
+      client.translate_paragraph = function(text, _, _, callback)
+        table.insert(captured_chunks, text)
+        -- Simulate successful translation by returning a modified version of the chunk
+        callback("Translated: " .. text, false)
+      end
     end)
 
-    it("should handle failure gracefully", function()
-      local callback_called = false
-      local final_text, has_errors
+    after_each(function()
+      client.translate_paragraph = original_translate_paragraph
+    end)
 
-      client.translate("Good paragraph.\n\nBad paragraph.", "en", "fr", function(result, err)
-        callback_called = true
+    it("should not chunk if text is smaller than max_chunk_size", function()
+      config.setup({ max_chunk_size = 1000 })
+      local text = "Paragraph one.\n\nParagraph two."
+      local final_text
+      client.translate(text, "auto", "en", function(result)
         final_text = result
-        has_errors = err
+      end)
+      assert.are.equal(1, #captured_chunks)
+      assert.are.equal(text, captured_chunks[1])
+      assert.are.equal("Translated: " .. text, final_text)
+    end)
+
+    it("should split text into multiple chunks if it exceeds max_chunk_size", function()
+      config.setup({ max_chunk_size = 25 })
+      local text = "This is the first paragraph.\n\nThis is the second one."
+      local final_text
+      client.translate(text, "auto", "en", function(result)
+        final_text = result
       end)
 
-      assert.are.equal(2, #job_callbacks)
+      assert.are.equal(2, #captured_chunks)
+      assert.are.equal("This is the first paragraph.", captured_chunks[1])
+      assert.are.equal("This is the second one.", captured_chunks[2])
+      assert.are.equal("Translated: This is the first paragraph.\n\nTranslated: This is the second one.", final_text)
+    end)
 
-      -- First succeeds
-      local res1 = { code = 200, data = "Bon paragraphe." }
-      job_callbacks[1].opts.on_stdout(1, { vim.fn.json_encode(res1) }, "stdout")
-      job_callbacks[1].opts.on_exit(1, 0, "exit")
+    it("should handle a single paragraph larger than max_chunk_size as one chunk", function()
+      config.setup({ max_chunk_size = 15 })
+      local text = "This single paragraph is very long."
+      client.translate(text, "auto", "en", function() end)
 
-      -- Second fails
-      job_callbacks[2].opts.on_exit(2, 1, "exit") -- Network error
-
-      assert.is_true(callback_called)
-      assert.are.equal("Bon paragraphe.\n\nBad paragraph.", final_text)
-      assert.is_true(has_errors)
+      assert.are.equal(1, #captured_chunks)
+      assert.are.equal(text, captured_chunks[1])
     end)
   end)
 
