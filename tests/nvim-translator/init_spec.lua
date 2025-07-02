@@ -3,16 +3,18 @@ local translator = require("nvim-translator")
 
 describe("nvim-translator", function()
   local original_getpos, original_buf_get_text, original_create_buf, original_open_win
-  local original_notify, original_set_keymap, original_schedule, original_snacks_win
+  local original_notify, original_set_keymap, original_schedule, original_snacks_win, original_create_user_command
   local mock_text_lines = {}
   local notifications = {}
   local keymaps = {}
+  local commands = {}
 
   before_each(function()
     -- Reset state
     mock_text_lines = {}
     notifications = {}
     keymaps = {}
+    commands = {}
 
     -- Mock vim.fn.getpos
     original_getpos = vim.fn.getpos
@@ -59,6 +61,12 @@ describe("nvim-translator", function()
       table.insert(keymaps, { mode = mode, lhs = lhs, rhs = rhs, opts = opts })
     end
 
+    -- Mock vim.api.nvim_create_user_command
+    original_create_user_command = vim.api.nvim_create_user_command
+    vim.api.nvim_create_user_command = function(name, cmd, opts)
+      table.insert(commands, { name = name, cmd = cmd, opts = opts })
+    end
+
     -- Mock vim.schedule
     original_schedule = vim.schedule
     vim.schedule = function(fn)
@@ -85,12 +93,18 @@ describe("nvim-translator", function()
     vim.api.nvim_set_keymap = original_set_keymap
     vim.schedule = original_schedule
     package.loaded["snacks.win"] = original_snacks_win
+    vim.api.nvim_create_user_command = original_create_user_command
   end)
 
   describe("setup", function()
     it("should setup with default configuration", function()
       translator.setup()
-      assert.are.equal(1, #keymaps)
+      assert.are.equal(2, #commands)
+      assert.are.equal("Translate", commands[1].name)
+      assert.are.equal("TranslateTo", commands[2].name)
+      assert.are.equal(2, #keymaps)
+      assert.are.equal("<leader>lt", keymaps[1].lhs)
+      assert.are.equal("<leader>lT", keymaps[2].lhs)
     end)
   end)
 

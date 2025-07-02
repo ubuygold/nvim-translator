@@ -7,10 +7,11 @@ describe("nvim-translator integration", function()
   local client = require("nvim-translator.client")
 
   local original_jobstart, original_notify, original_schedule, original_chansend, original_chanclose
-  local original_getpos, original_buf_get_text, original_snacks_win
+  local original_getpos, original_buf_get_text, original_snacks_win, original_snacks_picker
   local job_callbacks = {}
   local notifications = {}
   local snacks_win_opts = {} -- To capture snacks.win options
+  local snacks_picker_opts = {} -- To capture snacks.picker options
   local job_id_counter
 
   before_each(function()
@@ -18,6 +19,7 @@ describe("nvim-translator integration", function()
     job_callbacks = {}
     notifications = {}
     snacks_win_opts = {}
+    snacks_picker_opts = {}
     job_id_counter = 0
 
     -- Reset configuration state
@@ -73,6 +75,12 @@ describe("nvim-translator integration", function()
       snacks_win_opts = opts
     end
 
+    -- Mock snacks.picker
+    original_snacks_picker = package.loaded["snacks.picker"]
+    package.loaded["snacks.picker"] = function(opts)
+      snacks_picker_opts = opts
+    end
+
     vim.api.nvim_get_option = function(name)
       if name == "columns" then
         return 80
@@ -89,8 +97,9 @@ describe("nvim-translator integration", function()
     vim.schedule = original_schedule
     vim.fn.getpos = original_getpos
     vim.api.nvim_buf_get_text = original_buf_get_text
-    -- Restore snacks.win
+    -- Restore snacks.win and snacks.picker
     package.loaded["snacks.win"] = original_snacks_win
+    package.loaded["snacks.picker"] = original_snacks_picker
     vim.fn.chansend = original_chansend
     vim.fn.chanclose = original_chanclose
   end)
@@ -133,6 +142,38 @@ describe("nvim-translator integration", function()
       assert.are.same({ "Premier paragraphe.", "", "Second paragraph." }, snacks_win_opts.text)
       assert.are.equal(1, #notifications)
       assert.is_true(string.find(notifications[1].msg, "Some paragraphs could not be translated") ~= nil)
+    end)
+  end)
+
+  describe("language selection workflow", function()
+    it("should open picker and translate with selected language", function()
+      translator.setup()
+      translator.select_language_and_translate()
+
+      -- Check if picker was called with correct options
+      assert.is_not_nil(snacks_picker_opts.items)
+      assert.are.equal("Select Target Language", snacks_picker_opts.title)
+
+      -- Simulate user selecting a language (e.g., French)
+      local selected_item = { code = "FR", name = "French" }
+      snacks_picker_opts.confirm(nil, selected_item)
+
+      -- Check if translate was called, which triggers jobstart
+      assert.are.equal(2, #job_callbacks) -- Two paragraphs
+
+      -- Simulate successful API responses
+      local res1 = { code = 200, data = "Premier paragraphe." }
+      local res2 = { code = 200, data = "Second paragraphe." }
+
+      job_callbacks[1].on_stdout(1, { vim.fn.json_encode(res1) }, "stdout")
+      job_callbacks[1].on_exit(1, 0, "exit")
+
+      job_callbacks[2].on_stdout(2, { vim.fn.json_encode(res2) }, "stdout")
+      job_callbacks[2].on_exit(2, 0, "exit")
+
+      -- Check if result is displayed
+      assert.are.same({ "Premier paragraphe.", "", "Second paragraphe." }, snacks_win_opts.text)
+      assert.are.equal(0, #notifications)
     end)
   end)
 end)

@@ -29,19 +29,34 @@ return {
 
 ## Usage
 
-1.  Enter visual mode in Neovim (press `v` or `V`).
-2.  Select the text you want to translate.
-3.  Press `<leader>lt` (default keymap) or execute the `:Translate` command.
+There are two ways to translate:
+
+1.  **Direct Translation**:
+    *   Enter visual mode (`v` or `V`) and select text.
+    *   Press `<leader>lt` (default) or run `:Translate`.
+    *   This translates to your default `target_lang`.
+
+2.  **Translate to a Specific Language**:
+    *   Enter visual mode and select text.
+    *   Press `<leader>lT` (default) or run `:TranslateTo`.
+    *   A window will pop up allowing you to select the target language for this translation.
 
 The translation result will be displayed in a floating window.
 
 ## Configuration
 
-You can configure `source_lang` and `target_lang` in the `setup` function.
+You can configure the plugin in the `setup` function.
 
 ```lua
 require('nvim-translator').setup({
   source_lang = 'auto', -- e.g., translate from auto-detected language
   target_lang = 'FR',   -- e.g., translate to French
+  keymap = '<leader>lt', -- Keymap for direct translation
+  keymap_to = '<leader>lT', -- Keymap for selecting a language before translating
+  -- You can also override the list of languages for the picker
+  -- languages = {
+  --   { code = "EN", name = "English", text = "English (EN)" },
+  --   { code = "ES", name = "Spanish", text = "Spanish (ES)" },
+  -- }
 })
 ```
